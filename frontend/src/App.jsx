@@ -23,6 +23,69 @@ import Footer from './components/Footer';
 import { getAllBusesAPI, searchBusesAPI, getNetworkTownsAPI } from './services/api';
 import { connectWebSocket, subscribeToBusUpdates } from './services/websocket';
 
+const DEMO_MOCK_BUSES = [
+  {
+    id: 1,
+    busNumber: "ND-4521",
+    operatorName: "Superline Express",
+    busType: "Luxury AC Highway",
+    totalSeats: 40,
+    availableSeats: 28,
+    departureTime: "06:30 AM",
+    arrivalTime: "09:45 AM",
+    price: 1450.00,
+    source: "Colombo",
+    destination: "Kandy",
+    features: "Free WiFi, USB Charging, Reclining Seats, GPS Telemetry",
+    bookedSeats: [1, 2, 5, 12]
+  },
+  {
+    id: 2,
+    busNumber: "NC-8890",
+    operatorName: "CityLink Trans",
+    busType: "Semi-Luxury Express",
+    totalSeats: 49,
+    availableSeats: 35,
+    departureTime: "08:00 AM",
+    arrivalTime: "11:30 AM",
+    price: 1150.00,
+    source: "Colombo",
+    destination: "Kandy",
+    features: "Adjustable Seats, Overhead AC, Luggage Rack",
+    bookedSeats: [3, 4, 10]
+  },
+  {
+    id: 3,
+    busNumber: "ND-1205",
+    operatorName: "Highway Rider VIP",
+    busType: "Super Luxury AC",
+    totalSeats: 36,
+    availableSeats: 19,
+    departureTime: "10:15 AM",
+    arrivalTime: "01:30 PM",
+    price: 1650.00,
+    source: "Colombo",
+    destination: "Kandy",
+    features: "Snacks, Mineral Water, Ambient Lighting, Live Tracking",
+    bookedSeats: [7, 8, 9, 14, 15]
+  },
+  {
+    id: 4,
+    busNumber: "NA-3341",
+    operatorName: "Hill Country Express",
+    busType: "Luxury AC",
+    totalSeats: 42,
+    availableSeats: 25,
+    departureTime: "02:00 PM",
+    arrivalTime: "05:15 PM",
+    price: 1400.00,
+    source: "Kandy",
+    destination: "Colombo",
+    features: "Free WiFi, USB Charging, Reclining Seats",
+    bookedSeats: [5, 6]
+  }
+];
+
 function App() {
   const { t } = useTranslation();
 
@@ -79,22 +142,32 @@ function App() {
     setLoading(true);
     try {
       const allRes = await getAllBusesAPI();
-      const fullList = Array.isArray(allRes.data) ? allRes.data : [];
+      const fullList = Array.isArray(allRes.data) && allRes.data.length > 0 ? allRes.data : DEMO_MOCK_BUSES;
       setAllNetworkBuses(fullList);
 
       if (source && destination) {
         const res = await searchBusesAPI(source, destination);
-        setBuses(Array.isArray(res.data) ? res.data : []);
+        const searchList = Array.isArray(res.data) && res.data.length > 0 
+          ? res.data 
+          : DEMO_MOCK_BUSES.filter(b => b.source.toLowerCase() === source.toLowerCase() && b.destination.toLowerCase() === destination.toLowerCase());
+        
+        setBuses(searchList.length > 0 ? searchList : DEMO_MOCK_BUSES);
 
         const retRes = await searchBusesAPI(destination, source);
-        setReturnBuses(Array.isArray(retRes.data) ? retRes.data : []);
+        const returnList = Array.isArray(retRes.data) && retRes.data.length > 0 
+          ? retRes.data 
+          : DEMO_MOCK_BUSES.filter(b => b.source.toLowerCase() === destination.toLowerCase() && b.destination.toLowerCase() === source.toLowerCase());
+        
+        setReturnBuses(returnList.length > 0 ? returnList : DEMO_MOCK_BUSES);
       } else {
         setBuses(fullList);
         setReturnBuses([]);
       }
     } catch (err) {
-      setBuses([]);
-      setReturnBuses([]);
+      console.warn("Backend offline, switching to interactive Demo Mode");
+      setAllNetworkBuses(DEMO_MOCK_BUSES);
+      setBuses(DEMO_MOCK_BUSES);
+      setReturnBuses(DEMO_MOCK_BUSES);
     } finally {
       setLoading(false);
     }
@@ -104,11 +177,15 @@ function App() {
     fetchTowns();
     fetchBuses();
 
-    connectWebSocket(() => {
-      subscribeToBusUpdates(() => {
-        fetchBuses();
+    try {
+      connectWebSocket(() => {
+        subscribeToBusUpdates(() => {
+          fetchBuses();
+        });
       });
-    });
+    } catch (e) {
+      console.warn("WebSocket inactive in demo preview");
+    }
   }, [tripType]);
 
   const handleSwapLocations = () => {
