@@ -1,0 +1,63 @@
+version: '3.8'
+
+services:
+  # 1. MySQL Database Container
+  mysqldb:
+    image: mysql:8.0
+    container_name: transitgo_mysql
+    restart: always
+    environment:
+      MYSQL_DATABASE: transitgodb
+      MYSQL_ROOT_PASSWORD: rootpassword
+    ports:
+      - "3307:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    networks:
+      - transitgo_network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-prootpassword"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # 2. Spring Boot Backend Container
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: transitgo_backend
+    restart: always
+    depends_on:
+      mysqldb:
+        condition: service_healthy
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysqldb:3306/transitgodb?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: rootpassword
+      SPRING_JPA_HIBERNATE_DDL_AUTO: update
+    ports:
+      - "8080:8080"
+    networks:
+      - transitgo_network
+
+  # 3. React Vite Frontend Container (Nginx)
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: transitgo_frontend
+    restart: always
+    depends_on:
+      - backend
+    ports:
+      - "80:80"
+    networks:
+      - transitgo_network
+
+volumes:
+  mysql_data:
+
+networks:
+  transitgo_network:
+    driver: bridge
